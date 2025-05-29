@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class AuthService {
@@ -54,5 +55,32 @@ export class AuthService {
         const token = await this.jwtService.signAsync(payload);
 
         return { access_token: token };
+    }
+
+    async updateUser(user: { id: string }, dto: UpdateUserDto) {
+        const updates: any = {};
+
+        if (dto.username) {
+            updates.username = dto.username;
+        }
+
+        if (dto.password) {
+            updates.password = await bcrypt.hash(dto.password, 10);
+        }
+
+        if (Object.keys(updates).length === 0) {
+            throw new BadRequestException('No fields provided for update.');
+        }
+
+        const updated = await this.prisma.member.update({
+            where: { id: user.id },
+            data: updates,
+        });
+
+        return {
+            id: updated.id,
+            username: updated.username,
+            updatedAt: new Date().toISOString(),
+        };
     }
 }
