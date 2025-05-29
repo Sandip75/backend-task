@@ -1,4 +1,4 @@
-import { Body, Controller, Post, BadRequestException, UseGuards, Patch, Request } from '@nestjs/common';
+import { Body, Controller, Post, BadRequestException, UseGuards, Patch, Request, Req, Get } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
@@ -15,13 +15,20 @@ export class AuthController {
     }
 
     @Post('login')
-    login(@Body() dto: LoginDto) {
-        return this.authService.login(dto);
+    login(@Body() dto: LoginDto, @Req() req: Request) {
+        const ip = req.headers['x-forwarded-for'] || 'unknown';
+        return this.authService.login(dto, ip);
     }
 
     @UseGuards(JwtAuthGuard)
     @Patch('update')
     update(@Request() req, @Body() dto: UpdateUserDto) {
         return this.authService.updateUser(req.user, dto);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Get('login-records')
+    getLoginRecords(@Request() req) {
+        return this.authService.getLoginRecords(req.user.id);
     }
 }

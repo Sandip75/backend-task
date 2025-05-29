@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { SignupDto } from './dto/signup.dto';
 import { PrismaClient } from '@prisma/client';
+import { format } from 'date-fns';
 import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
@@ -37,7 +38,7 @@ export class AuthService {
         };
     }
 
-    async login(dto: LoginDto) {
+    async login(dto: LoginDto, ip: string) {
         const user = await this.prisma.member.findUnique({
             where: { id: dto.id },
         });
@@ -50,6 +51,13 @@ export class AuthService {
         if (!isPasswordValid) {
             throw new UnauthorizedException('Invalid email or password');
         }
+        await this.prisma.loginRecord.create({
+            data: {
+                userId: user.id,
+                ip,
+                loginTime: new Date(),
+            },
+        });
 
         const payload = { sub: user.id };
         const token = await this.jwtService.signAsync(payload);
@@ -82,5 +90,20 @@ export class AuthService {
             username: updated.username,
             updatedAt: new Date().toISOString(),
         };
+    }
+
+    async getLoginRecords(userId: string) {
+        const records = await this.prisma.loginRecord.findMany({
+            where: { userId },
+            orderBy: { loginTime: 'desc' },
+            take: 30,
+            include: { user: true },
+        });
+
+        return records.map((record) => ({
+            ip: record.ip,
+            loginTime: format(record.loginTime, 'yyyy-MM-dd HH:mm:ss'),
+            username: record.user?.username ?? null,
+        }));
     }
 }
