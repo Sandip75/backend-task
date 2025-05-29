@@ -31,4 +31,9 @@ export class AuthController {
     getLoginRecords(@Request() req) {
         return this.authService.getLoginRecords(req.user.id);
     }
+
+    @Get('login-rankings')
+    getLoginRankings() {
+        return this.authService.getWeeklyLoginRankings();
+    }
 }

@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { SignupDto } from './dto/signup.dto';
 import { PrismaClient } from '@prisma/client';
-import { format } from 'date-fns';
+import { endOfWeek, format, startOfWeek } from 'date-fns';
 import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
@@ -106,4 +106,72 @@ export class AuthService {
             username: record.user?.username ?? null,
         }));
     }
+
+    async getWeeklyLoginRankings() {
+        const now = new Date();
+        const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+        const weekEnd = endOfWeek(now, { weekStartsOn: 1 }); 
+
+        const activeUsers = await this.prisma.member.findMany({
+            select: { id: true, username: true },
+        });
+
+        const activeUserIds = activeUsers.map((u) => u.id);
+        const userMap = new Map(activeUsers.map((u) => [u.id, u.username]));
+
+        const records = await this.prisma.loginRecord.groupBy({
+            by: ['userId'],
+            where: {
+                userId: { in: activeUserIds },
+                loginTime: {
+                    gte: weekStart,
+                    lte: weekEnd,
+                },
+            },
+            _count: { userId: true },
+            orderBy: {
+                _count: { userId: 'desc' },
+            },
+        });
+
+        if (records.length === 0) {
+            return Array(20).fill({
+                username: null,
+                loginCount: null,
+                rank: null,
+            });
+        }
+
+        const rankings = [];
+        let lastCount: number | null = null;
+        let currentRank = 0;
+        let tieCount = 0;
+
+        for (let i = 0; i < Math.min(20, records.length); i++) {
+            const record = records[i];
+            const loginCount = record._count.userId;
+
+            if (loginCount !== lastCount) {
+                currentRank = currentRank + 1 + tieCount;
+                tieCount = 0;
+            } else {
+                tieCount++;
+            }
+
+            lastCount = loginCount;
+
+            rankings.push({
+                username: userMap.get(record.userId)!,
+                loginCount,
+                rank: currentRank,
+            });
+        }
+
+        while (rankings.length < 20) {
+            rankings.push({ username: null, loginCount: null, rank: null });
+        }
+
+        return rankings;
+    }
+
 }

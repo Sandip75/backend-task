@@ -25,7 +25,7 @@ export class CommentService {
 
     const comments = await this.prisma.comment.findMany({
       where: { postId },
-      take: limit + 1, // Fetch 1 extra for next-page check
+      take: limit + 1,
       ...(cursor && { cursor: { id: cursor }, skip: 1 }),
       orderBy: { createdAt: 'desc' },
       include: { author: true },
